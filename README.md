@@ -15,6 +15,16 @@ The product ships **two independent pipelines** (switchable from the web home pa
 
 There is no demo/mock mode: the product always calls real AI providers (it fails fast at startup if a key is missing).
 
+## Demo
+
+A finished picture book generated end-to-end from the one-line theme "寒号鸟" (The Cold-Bird) — 15 pages, warm watercolor style, per-character dubbing, sound effects and BGM:
+
+**▶ [Watch the full narrated video (480p, 1:46)](demo/assets/hanhao-niao-480p.mp4)**
+
+| Creation form — theme, style, language, aspect, BGM toggle | Preview & export — animated book with storyboard strip |
+|---|---|
+| ![Creation form](demo/assets/create-page.png) | ![Preview](demo/assets/preview-page.png) |
+
 ## Features
 
 - **Per-character dubbing** — the story carries `segments: [{speaker, text}]`; narrator lines use the narrator voice, character lines use a voice picked per character from a curated child-friendly voice palette, with automatic loudness normalization between voices

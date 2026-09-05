@@ -33,6 +33,11 @@ public/assets
 .assetpack
 src/manifest.json
 
+# demo 原始素材（体积过大，仅保留 demo/assets/ 下的压缩产物入库）
+demo/*.mp4
+demo/*.mov
+demo/ScreenShot_*.png
+
 # Brainstorm companion session files
 .superpowers/
 

@@ -19,7 +19,11 @@
 
 一本由一句话主题「寒号鸟」端到端生成的完整绘本——15 页、暖色水彩画风、分角色配音、情节音效与背景音乐：
 
-**▶ [观看完整带旁白成片（480p，1:46）](demo/assets/hanhao-niao-480p.mp4)**
+[![效果预览](demo/assets/demo-preview.gif)](https://github.com/jojowwbb/book-drawer-studio/raw/main/demo/assets/hanhao-niao-480p.mp4)
+
+完整带旁白成片（480p，1:46）——点击播放，含声音：
+
+https://github.com/jojowwbb/book-drawer-studio/raw/main/demo/assets/hanhao-niao-480p.mp4
 
 | 创作表单——主题、画风、语言、画幅、BGM 开关 | 预览与导出——动画绘本 + 分镜缩略图墙 |
 |---|---|

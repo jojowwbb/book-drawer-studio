@@ -19,7 +19,11 @@ There is no demo/mock mode: the product always calls real AI providers (it fails
 
 A finished picture book generated end-to-end from the one-line theme "寒号鸟" (The Cold-Bird) — 15 pages, warm watercolor style, per-character dubbing, sound effects and BGM:
 
-**▶ [Watch the full narrated video (480p, 1:46)](demo/assets/hanhao-niao-480p.mp4)**
+[![Demo preview](demo/assets/demo-preview.gif)](https://github.com/jojowwbb/book-drawer-studio/raw/main/demo/assets/hanhao-niao-480p.mp4)
+
+Full narrated video (480p, 1:46) — click to play with audio:
+
+https://github.com/jojowwbb/book-drawer-studio/raw/main/demo/assets/hanhao-niao-480p.mp4
 
 | Creation form — theme, style, language, aspect, BGM toggle | Preview & export — animated book with storyboard strip |
 |---|---|

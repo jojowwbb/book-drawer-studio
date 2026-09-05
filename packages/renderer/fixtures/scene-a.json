@@ -1,0 +1,21 @@
+{
+  "page_id": "scene-a",
+  "duration_ms": 8000,
+  "width": 640,
+  "height": 360,
+  "seed": 20260829,
+  "base_color": "#101828",
+  "background": { "src": "/fixtures/bg.png" },
+  "subjects": [
+    { "src": "/fixtures/subject-a.png", "x": 240, "y": 250, "scale": 8, "fx": ["breathe", "enter_left"] },
+    { "src": "/fixtures/subject-b.png", "x": 420, "y": 260, "scale": 6, "fx": ["float"] }
+  ],
+  "foreground": { "src": "/fixtures/fg.png" },
+  "camera": { "type": "ken_burns_in", "intensity": 0.5 },
+  "ambient": [
+    { "type": "stars_twinkle", "density": 0.6 },
+    { "type": "fireflies", "density": 0.4 }
+  ],
+  "subtitle": { "text": "hello" },
+  "audio_refs": { "narration": "narr-1.mp3" }
+}

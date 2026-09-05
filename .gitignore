@@ -1,0 +1,50 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.agents/*
+.trae/*
+.assetpack/*
+.superpowers/*
+.sprite-forge-output/*
+.DS_Store
+docs
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+public/assets
+.assetpack
+src/manifest.json
+
+# Brainstorm companion session files
+.superpowers/
+
+# Test artifacts
+test-results/
+playwright-report/
+
+# Server data directory (generated book assets)
+data/
+
+# E2E server data directory
+data-e2e/
+
+# Local secrets (API keys)
+.env

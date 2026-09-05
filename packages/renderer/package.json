@@ -1,0 +1,27 @@
+{
+  "name": "@pb/renderer",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "dev:harness": "vite --config harness/vite.config.ts --port 5199 --strictPort",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "pixi.js": "^8.6.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "@types/node": "^22",
+    "@types/pixelmatch": "^5.2.0",
+    "@types/pngjs": "^6.0.0",
+    "pixelmatch": "^6.0.0",
+    "pngjs": "^7.0.0",
+    "typescript": "^5.6.0",
+    "vite": "^6.0.0",
+    "vitest": "^2.1.0"
+  }
+}

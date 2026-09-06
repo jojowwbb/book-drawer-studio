@@ -8,17 +8,21 @@ import {
   createRealProjectProviders,
   createRealProviders,
   loadRealProvidersConfig,
+  NARRATOR,
+  parseSpeakerMarkup,
   VOICE_PALETTE,
   type ProviderBundle,
 } from '@pb/ai-core';
 import { AssetStore } from './asset-store';
 import { BookRepo, type ExportArtifact } from './book-repo';
+import { TITLE_PAGE_ID } from './scene-assembly';
 import { EventHub, type ProjectHubMessage } from './events';
 import { ExportJob } from './export/export-job';
 import { HarnessDriver } from './export/harness-driver';
 import { ConcatExporter } from './export/concat-exporter';
 import { ProjectExporter } from './export/project-exporter';
 import { HeadlessClipRenderer, type ClipSource } from './export/clip-source';
+import { TRANSITION_TYPES, type TransitionType } from './export/clip-join';
 import { Pipeline } from './pipeline';
 import { SerialQueue } from './queue';
 import { initialCounters, MAX_PAGE_REGENS, transition } from './state-machine';
@@ -37,8 +41,10 @@ export interface AppConfig {
   /** 故事视频产线导出器注入点（测试用桩） */
   projectExporter?: { exportProject(projectId: string): Promise<ExportArtifact> };
   exportFps?: number;
-  /** 幕间交叉溶解时长（ms）；0 关闭转场（默认 600，见 ConcatExporter） */
+  /** 幕间转场时长（ms）；0 关闭转场（默认 600，见 ConcatExporter） */
   exportTransitionMs?: number;
+  /** 幕间转场类型（slideleft/coverleft/wipeleft/fade）；缺省绘本翻页感 slideleft、故事视频 fade */
+  exportTransition?: TransitionType;
   /** 背景音乐路径；'off' 关闭，缺省用内置卡农钢琴版 */
   bgm?: string;
   /** 环境音效层（雨/风等从每页氛围派生）；'off' 关闭，缺省开启 */
@@ -70,6 +76,8 @@ const CreateBookBody = z.object({
   enhance: z.boolean().default(false),
   /** 背景音乐开关：false=成片不混 BGM（缺省开启，按全局 PB_BGM 配置） */
   bgm: z.boolean().default(true),
+  /** 幕间转场类型（缺省按全局配置：绘本默认 slideleft 翻页感） */
+  transition: z.enum(TRANSITION_TYPES).optional(),
 });
 
 export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
@@ -100,6 +108,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     assets,
     fps: config.exportFps,
     transitionMs: config.exportTransitionMs,
+    transition: config.exportTransition,
     bgmPath: config.bgm === 'off' ? null : config.bgm,
     sfx: config.sfx !== 'off',
   });
@@ -127,6 +136,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
         pageSize: config.pageSize,
         fps: config.exportFps,
         transitionMs: config.exportTransitionMs,
+        transition: config.exportTransition,
         bgmPath: config.bgm === 'off' ? null : config.bgm,
         sfx: config.sfx !== 'off',
         probeDurationMs: config.probeDurationMs,
@@ -169,6 +179,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
       langs: [body.lang],
       enhance: body.enhance,
       bgm: body.bgm,
+      transition: body.transition,
       page_count: pageCount,
       state: 'created',
       counters: initialCounters(),
@@ -196,12 +207,20 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
       try {
         const story = assets.readStory(id, record.langs[0]!);
         body.voice_review = {
+          title: story.title,
           characters: story.characters.map((c) => ({
             name: c.name,
             appearance_desc: c.appearance_desc,
             voice: c.voice ?? null,
           })),
           narrator_voice: story.narrator_voice ?? null,
+          // 剧本页：音色确认时对照各页台词（含分角色分段）查看/修改
+          pages: story.pages.map((p) => ({
+            page_id: p.page_id,
+            page_text: p.page_text,
+            narration: p.narration,
+            segments: p.segments,
+          })),
         };
       } catch {
         // story 缺失时不阻塞状态接口
@@ -284,12 +303,29 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     const { id, pageId } = req.params as { id: string; pageId: string };
     const record = repo.get(id);
     if (!record) return reply.code(404).send({ error: 'not_found' });
-    if (record.state !== 'ready') return reply.code(409).send({ error: 'not_ready' });
+    // voice_review 阶段也可改台词：此时还没有插画/配音资产，服务端只更新 story 文本
+    if (record.state !== 'ready' && record.state !== 'voice_review')
+      return reply.code(409).send({ error: 'not_ready' });
     const parsed = PageTextBody.safeParse(req.body);
     if (!parsed.success || (!parsed.data.narration && !parsed.data.cover)) {
       return reply.code(400).send({ error: 'invalid_body' });
     }
     const { narration, cover } = parsed.data;
+    // 正文旁白支持【旁白】/【角色名】分台词标记：同步校验说话人，未知角色直接 400
+    // （否则异步 pipeline 抛错会被吞掉，前端卡在「保存中」）
+    if (narration && pageId !== TITLE_PAGE_ID) {
+      const segs = parseSpeakerMarkup(narration);
+      const known = new Set<string>([NARRATOR]);
+      try {
+        for (const c of assets.readStory(id, record.langs[0]!).characters) known.add(c.name);
+      } catch {
+        /* story 读不到时跳过校验，交由 pipeline 兜底 */
+      }
+      const unknown = [...new Set(segs.map((s) => s.speaker))].filter((sp) => !known.has(sp));
+      if (unknown.length > 0) {
+        return reply.code(400).send({ error: 'unknown_speakers', speakers: unknown });
+      }
+    }
     const draft = [narration, cover?.title, cover?.subtitle, ...(cover?.tags ?? [])]
       .filter(Boolean)
       .join('\n');

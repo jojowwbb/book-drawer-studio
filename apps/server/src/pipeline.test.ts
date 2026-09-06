@@ -558,6 +558,47 @@ describe('Pipeline narration (auto per-page during clip stage)', () => {
     ).toBe(true);
   });
 
+  it('editPageText parses 【旁白】/【角色】markup into per-speaker segments', async () => {
+    createBook();
+    withTtsStub();
+    await pipeline.run('b1');
+    ttsReqs = [];
+    // fake story 主角名「小暖」：标记它 → 用角色音色；旁白 → 默认音色
+    await pipeline.editPageText('b1', 'p1', {
+      narration: '【旁白】夜里静悄悄的。【小暖】我不怕黑。',
+    });
+
+    const story = store.readStory('b1', 'zh');
+    const page = story.pages[0]!;
+    expect(page.segments).toEqual([
+      { speaker: NARRATOR, text: '夜里静悄悄的。' },
+      { speaker: '小暖', text: '我不怕黑。' },
+    ]);
+    // narration（字幕）为去标记纯文本拼接
+    expect(page.narration).toBe('夜里静悄悄的。我不怕黑。');
+    const byText = [...ttsReqs].sort((a, b) => a.text.localeCompare(b.text));
+    expect(byText).toEqual([
+      { text: '我不怕黑。', lang: 'zh', voice: 'Mochi' },
+      { text: '夜里静悄悄的。', lang: 'zh', voice: undefined },
+    ]);
+    // spec 透传 segments 供前端编辑回填
+    const spec = BookSpecSchema.parse(
+      JSON.parse((await import('node:fs')).readFileSync(join(dir, 'books/b1/book_specs/zh.json'), 'utf8')),
+    ) as BookSpec;
+    expect(spec.pages.find((p) => p.page_id === 'p1')!.segments).toEqual(page.segments);
+  });
+
+  it('editPageText rejects unknown speakers in markup', async () => {
+    createBook();
+    withTtsStub();
+    await pipeline.run('b1');
+    await expect(
+      pipeline.editPageText('b1', 'p1', { narration: '【神秘人】你是谁？' }),
+    ).rejects.toThrow(/unknown_speakers:神秘人/);
+    // story 未被破坏
+    expect(store.readStory('b1', 'zh').pages[0]!.narration).toBeTruthy();
+  });
+
   it('editPageText on the title page edits cover text and re-dubs the title narration', async () => {
     createBook();
     withTtsStub();

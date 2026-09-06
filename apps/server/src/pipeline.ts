@@ -1,5 +1,5 @@
 import type { SceneSpec } from '@pb/renderer';
-import { concatWavs, encodeSolidPng, hashSeed, NARRATOR, normalizeVoice, repairSegments } from '@pb/ai-core';
+import { concatWavs, encodeSolidPng, emotionInstructions, hashSeed, NARRATOR, normalizeVoice, parseSpeakerMarkup, repairSegments, segmentsToNarration } from '@pb/ai-core';
 import type { Lang, ProviderBundle, Story } from '@pb/ai-core';
 import type { BookEvent } from './state-machine';
 import { transition, MAX_PAGE_REGENS } from './state-machine';
@@ -591,15 +591,17 @@ export class Pipeline {
         speaker === NARRATOR ? narratorVoice : normalizeVoice(story.characters.find((c) => c.name === speaker)?.voice);
 
       const audios: Uint8Array[] = [];
+      // 该页情绪 → 朗读语气指令，随每个分段请求下发（与全局基调叠加）
+      const tone = emotionInstructions(page.emotion, lang);
       for (const seg of segments) {
         const voice = voiceOf(seg.speaker);
         try {
-          const { audio } = await provider.synthesize({ text: seg.text, lang, voice });
+          const { audio } = await provider.synthesize({ text: seg.text, lang, voice, instructions: tone });
           audios.push(audio);
         } catch (err) {
           // 角色音色合成失败：回退默认旁白音色再试一次
           if (voice === undefined) throw err;
-          const { audio } = await provider.synthesize({ text: seg.text, lang });
+          const { audio } = await provider.synthesize({ text: seg.text, lang, instructions: tone });
           audios.push(audio);
         }
       }
@@ -698,7 +700,8 @@ export class Pipeline {
   ): Promise<void> {
     const record = this.repo.get(bookId);
     if (!record) throw new Error(`book not found: ${bookId}`);
-    if (record.state !== 'ready') throw new Error('book not ready');
+    if (record.state !== 'ready' && record.state !== 'voice_review')
+      throw new Error('book not ready');
     const lang = record.langs[0]!;
     const story = this.assets.readStory(bookId, lang);
     const size = bookPageSize(record, this.config.pageSize);
@@ -707,6 +710,8 @@ export class Pipeline {
       if (!story.cover || !patch.cover) throw new Error(`cover text not editable: ${bookId}`);
       story.cover = { ...story.cover, ...patch.cover };
       this.assets.writeStory(bookId, lang, story);
+      // 音色确认阶段尚无片头资产：只落盘文本，保持 voice_review
+      if (record.state === 'voice_review') return;
       const manifest = this.assets.tryReadPageAssets(bookId, TITLE_PAGE_ID);
       if (!manifest) throw new Error(`page assets not found: ${TITLE_PAGE_ID}`);
       manifest.narration_url = undefined;
@@ -722,10 +727,21 @@ export class Pipeline {
     } else {
       const page = story.pages.find((p) => p.page_id === pageId);
       if (!page || !patch.narration) throw new Error(`page not found: ${pageId}`);
-      page.narration = patch.narration;
-      // 手改文本与角色分段无法自动对齐：重置为单旁白段（重配走旁白音色）
-      page.segments = undefined;
+      // 支持用户用【旁白】/【角色名】标记手动分台词（修复 AI 说话人错配后重新配音）；
+      // 无标记时行为不变：重置为整段旁白（手改文本与旧角色分段无法自动对齐）
+      const parsed = parseSpeakerMarkup(patch.narration);
+      const known = new Set(story.characters.map((c) => c.name));
+      const unknown = [...new Set(parsed.map((s) => s.speaker))]
+        .filter((sp) => sp !== NARRATOR && !known.has(sp));
+      if (unknown.length > 0) {
+        throw new Error(`unknown_speakers:${unknown.join(',')}`);
+      }
+      page.segments = parsed;
+      // narration 与字幕取去标记后的纯文本（TTS 逐段朗读的就是这些文本）
+      page.narration = segmentsToNarration(parsed);
       this.assets.writeStory(bookId, lang, story);
+      // 音色确认阶段尚无插画/配音资产：只落盘剧本文本，保持 voice_review
+      if (record.state === 'voice_review') return;
       const manifest = this.assets.tryReadPageAssets(bookId, pageId);
       if (!manifest) throw new Error(`page assets not found: ${pageId}`);
       manifest.narration_url = undefined;

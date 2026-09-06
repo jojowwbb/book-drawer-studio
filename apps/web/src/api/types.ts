@@ -1,5 +1,7 @@
 export type BookLang = 'zh' | 'en';
 export type BookFormat = 'landscape' | 'portrait';
+/** 幕间转场类型（与后端 TRANSITION_TYPES 对齐） */
+export type BookTransition = 'slideleft' | 'coverleft' | 'wipeleft' | 'fade';
 export type BookStyle =
   | 'watercolor'
   | 'flat'
@@ -26,6 +28,8 @@ export interface CreateBookInput {
   enhance: boolean;
   /** 背景音乐开关：false=成片不混 BGM（缺省开启） */
   bgm?: boolean;
+  /** 幕间转场类型（缺省翻页感 slideleft） */
+  transition?: BookTransition;
 }
 
 /** 音色确认暂停点（voice_review）返回的角色条目 */
@@ -33,6 +37,20 @@ export interface ReviewCharacter {
   name: string;
   appearance_desc: string;
   voice: string | null;
+}
+
+/** 剧本台词分段（speaker 为「旁白」或角色名） */
+export interface ReviewScriptSegment {
+  speaker: string;
+  text: string;
+}
+
+/** voice_review 阶段携带的剧本页：对照台词确认/修改音色 */
+export interface ReviewScriptPage {
+  page_id: string;
+  page_text: string;
+  narration: string;
+  segments?: ReviewScriptSegment[];
 }
 
 export interface BookProgress {
@@ -61,6 +79,11 @@ export interface BookStatus {
   preview?: { book_specs: Record<string, string> };
   exports?: Partial<Record<BookLang, ExportArtifact>>;
   clips?: PageClipInfo[];
-  /** 停在 voice_review 时携带：待确认的角色列表与旁白音色 */
-  voice_review?: { characters: ReviewCharacter[]; narrator_voice: string | null };
+  /** 停在 voice_review 时携带：待确认的角色列表、旁白音色与剧本页 */
+  voice_review?: {
+    title?: string;
+    characters: ReviewCharacter[];
+    narrator_voice: string | null;
+    pages?: ReviewScriptPage[];
+  };
 }

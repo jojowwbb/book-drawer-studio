@@ -1,4 +1,5 @@
 import type { Lang, StyleId } from '@pb/ai-core';
+import type { TransitionType } from './export/clip-join';
 import type { BookCounters, BookState } from './state-machine';
 import type { AssetStore } from './asset-store';
 
@@ -25,6 +26,8 @@ export interface BookRecord {
   enhance: boolean;
   /** 背景音乐开关：false=成片不混 BGM；缺省（true）按全局 PB_BGM 配置 */
   bgm?: boolean;
+  /** 幕间转场类型（首页可选）：缺省按全局配置（绘本默认 slideleft 翻页感） */
+  transition?: TransitionType;
   /** 指定则严格按该页数；缺省由 AI 按故事节奏自行分幕，故事定稿后回填实际页数 */
   page_count?: number;
   state: BookState;

@@ -14,8 +14,10 @@ export interface JoinDeps {
   ffmpegBin?: string;
   /** 重编码拼接时的目标帧率 */
   fps?: number;
-  /** 幕间交叉溶解时长（ms）；0 关闭转场回到硬切拼接 */
+  /** 幕间转场时长（ms）；0 关闭转场回到硬切拼接 */
   transitionMs?: number;
+  /** xfade 转场类型（翻页感，如 slideleft/coverleft；缺省 DEFAULT_TRANSITION_TYPE，'fade' 为交叉溶解） */
+  transition?: TransitionType;
   /** BGM 相对音量（旁白保持原音量），默认 0.12 */
   bgmVolume?: number;
   /** 音效层开关；默认开启 */
@@ -44,8 +46,19 @@ export interface JoinResult {
   sizeBytes: number;
 }
 
-/** 幕间交叉溶解默认时长：吃掉旁白 800ms 收尾留白，总时长几乎不增加 */
+/** 幕间转场默认时长：吃掉旁白 800ms 收尾留白，总时长几乎不增加 */
 export const DEFAULT_TRANSITION_MS = 600;
+
+/**
+ * xfade 转场类型（绘本翻页感优先）：
+ * - slideleft：旧页向左滑出、新页从右滑入，最接近翻书方向（默认）
+ * - coverleft：新页从左盖入（像翻页覆过）
+ * - wipeleft：自左向右擦除揭示新页
+ * - fade：交叉溶解（旧行为）
+ */
+export const TRANSITION_TYPES = ['slideleft', 'coverleft', 'wipeleft', 'fade'] as const;
+export type TransitionType = (typeof TRANSITION_TYPES)[number];
+export const DEFAULT_TRANSITION_TYPE: TransitionType = 'slideleft';
 
 function concatEscape(path: string): string {
   return path.replace(/'/g, "'\\''");
@@ -252,8 +265,8 @@ async function addSilence(
 }
 
 /**
- * 把若干定长片段（均已带音轨）用交叉溶解串成一条时间线：
- * 视频 xfade=fade 逐段叠加，音频 acrossfade 同步重叠，
+ * 把若干定长片段（均已带音轨）用转场串成一条时间线：
+ * 视频 xfade（转场类型可配，默认 slideleft 翻页感）逐段叠加，音频 acrossfade 同步重叠，
  * 总时长 = 各段之和 - (段数-1)×转场时长。
  */
 async function xfadeJoin(
@@ -262,6 +275,7 @@ async function xfadeJoin(
   width: number,
   height: number,
   transitionMs: number,
+  transition: TransitionType,
   hasAudio: boolean,
   outPath: string,
 ): Promise<void> {
@@ -292,7 +306,7 @@ async function xfadeJoin(
     }
     const vIn = i === 1 ? '[v0]' : `[x${i - 1}]`;
     const offset = Math.max(0, acc - t);
-    chain.push(`${vIn}[v${i}]xfade=transition=fade:duration=${t}:offset=${offset.toFixed(3)}[x${i}]`);
+    chain.push(`${vIn}[v${i}]xfade=transition=${transition}:duration=${t}:offset=${offset.toFixed(3)}[x${i}]`);
     if (hasAudio) {
       const aIn = i === 1 ? '[a0]' : `[y${i - 1}]`;
       chain.push(`${aIn}[a${i}]acrossfade=d=${t}:c1=tri:c2=tri[y${i}]`);
@@ -371,6 +385,7 @@ export async function joinClips(
   // 音轨存在性：旁白、片段自带音、或（音效层开启时的）情节 cue——只有 bg cue 的无声页也要混出音轨
   const anyAudio = parts.some((p) => p.narrationPath || p.clipHasAudio || (sfxOn && p.cues?.length));
   const transitionMs = deps.transitionMs ?? DEFAULT_TRANSITION_MS;
+  const transition = deps.transition ?? DEFAULT_TRANSITION_TYPE;
   const useXfade = transitionMs > 0 && parts.length >= 2;
 
   // 每段归一化后的成片时长（旁白超时延长）；xfade 模式下逐段重叠扣减
@@ -402,8 +417,8 @@ export async function joinClips(
 
   mkdirSync(tmpDir, { recursive: true });
   if (useXfade) {
-    // 幕间交叉溶解：xfade/acrossfade 时间线拼接（全片重编码，规格统一到给定尺寸）
-    await xfadeJoin(deps, partFiles, size.width, size.height, transitionMs, anyAudio, outPath);
+    // 幕间转场（默认翻页感 slideleft）：xfade/acrossfade 时间线拼接（全片重编码，规格统一到给定尺寸）
+    await xfadeJoin(deps, partFiles, size.width, size.height, transitionMs, transition, anyAudio, outPath);
   } else {
     const listPath = `${tmpDir}/.concat-${opts.tag}.txt`;
     writeFileSync(listPath, `${listLines.join('\n')}\n`);

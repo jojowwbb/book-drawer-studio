@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { SfxCueListSchema } from './story-schema';
+import { NARRATOR } from './voices';
 
 /**
  * 故事视频产线的剧本分析结构：主题文章/小说/剧本 → 分集分场 + 角色设定卡。
@@ -97,6 +98,56 @@ export function normalizeScriptLocations(analysis: ScriptAnalysis): ScriptAnalys
       scenes: ep.scenes.map((sc) =>
         sc.location_id && !valid.has(sc.location_id) ? { ...sc, location_id: undefined } : sc,
       ),
+    })),
+  };
+}
+
+/**
+ * 台词说话人归一化：把 AI 输出的 dialogues[].speaker 稳健解析回 characters[].name，
+ * 修正「角色1的台词错配给角色2」——AI 常写成简称（「妈妈」vs 卡名「兔妈妈」）、
+ * 角色 id（c1/c2）、带多余空格，甚至幻觉出「旁白」条目。
+ *
+ * 匹配优先级：完全相等 → 去空格后相等 → speaker 是某角色名的唯一子串（或反之）
+ * → speaker 等于某角色 id。任一角色命中即改写成其 name；命中不到或为「旁白」的，
+ * 并入该场 narration（宁可旁白念，也不错配给别的角色），保证 speaker 一定是合法角色名。
+ * 在 provider parse 之后、normalizeScriptLocations 一并调用。
+ */
+export function normalizeScriptSpeakers(analysis: ScriptAnalysis): ScriptAnalysis {
+  const chars = analysis.characters;
+  const resolve = (raw: string): string | undefined => {
+    const s = raw.trim();
+    if (!s || s === NARRATOR) return undefined;
+    // 1) 精确名
+    if (chars.some((c) => c.name === s)) return s;
+    // 2) 去空格后精确名
+    const compact = s.replace(/\s+/g, '');
+    const byCompact = chars.find((c) => c.name.replace(/\s+/g, '') === compact);
+    if (byCompact) return byCompact.name;
+    // 3) 角色 id
+    const byId = chars.find((c) => c.id === s);
+    if (byId) return byId.name;
+    // 4) 唯一子串匹配（简称「妈妈」→「兔妈妈」；或 AI 多写了后缀「兔妈妈酱」）
+    const contains = chars.filter((c) => c.name.includes(compact) || compact.includes(c.name.replace(/\s+/g, '')));
+    if (contains.length === 1) return contains[0]!.name;
+    return undefined; // 无命中或多义（简称同时匹配多个角色）：不猜，降级为旁白
+  };
+
+  return {
+    ...analysis,
+    episodes: analysis.episodes.map((ep) => ({
+      ...ep,
+      scenes: ep.scenes.map((sc) => {
+        const kept: ScriptDialogue[] = [];
+        const orphanLines: string[] = [];
+        for (const d of sc.dialogues) {
+          const name = resolve(d.speaker);
+          if (name) kept.push({ speaker: name, line: d.line });
+          else orphanLines.push(d.line);
+        }
+        if (orphanLines.length === 0) return { ...sc, dialogues: kept };
+        const extra = orphanLines.join(' ');
+        return { ...sc, dialogues: kept, narration: sc.narration ? `${sc.narration} ${extra}` : extra };
+      }),
     })),
   };
 }

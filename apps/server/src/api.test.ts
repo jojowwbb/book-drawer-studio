@@ -348,6 +348,61 @@ describe('voice_review endpoints', () => {
     }
   }, 40000);
 
+  it('voice_review payload carries script pages and PUT /text edits script in place', async () => {
+    const reviewDir = mkdtempSync(join(tmpdir(), 'pb-voice-script-'));
+    const reviewApp = await buildApp({
+      voiceReview: true,
+      dataDir: reviewDir,
+      pageSize: { width: 64, height: 36 },
+      clipSource: stubClipSource(),
+      providers: createFakeProviders(),
+    });
+    await reviewApp.ready();
+    try {
+      const created = await reviewApp.inject({
+        method: 'POST',
+        url: '/api/books',
+        payload: { theme: '小兔子找朋友', page_count: 3 },
+      });
+      const { book_id } = created.json() as { book_id: string };
+      const paused = await waitForStateIn(reviewApp, book_id, ['voice_review']);
+      const review = paused.voice_review as {
+        title?: string;
+        pages: { page_id: string; narration: string; segments?: { speaker: string; text: string }[] }[];
+      };
+      expect(review.pages.length).toBe(3);
+      expect(review.pages[0]!.narration).toBeTruthy();
+
+      const pageId = review.pages[1]!.page_id;
+      const put = await reviewApp.inject({
+        method: 'PUT',
+        url: `/api/books/${book_id}/pages/${pageId}/text`,
+        payload: { narration: '【旁白】太阳出来了。【小暖】早上好呀！' },
+      });
+      expect(put.statusCode).toBe(202);
+
+      // 服务端异步落盘：轮询直到剧本页内容更新，且仍停在 voice_review
+      const deadline = Date.now() + 20000;
+      for (;;) {
+        const res = await reviewApp.inject({ method: 'GET', url: `/api/books/${book_id}` });
+        const body = res.json() as {
+          state: string;
+          voice_review: { pages: { page_id: string; narration: string }[] };
+        };
+        const p = body.voice_review.pages.find((x) => x.page_id === pageId);
+        if (p?.narration === '太阳出来了。早上好呀！') {
+          expect(body.state).toBe('voice_review');
+          break;
+        }
+        if (Date.now() > deadline) throw new Error('timeout waiting for edited script page');
+        await new Promise((r) => setTimeout(r, 50));
+      }
+    } finally {
+      await reviewApp.close();
+      rmSync(reviewDir, { recursive: true, force: true });
+    }
+  }, 40000);
+
   it('confirm-voices rejects when not in voice_review', async () => {
     const res = await app.inject({ method: 'POST', url: '/api/books/nope/confirm-voices' });
     expect(res.statusCode).toBe(404);

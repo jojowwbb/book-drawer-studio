@@ -2,6 +2,7 @@ export const VERSION = '0.1.0';
 export * from './story-schema';
 export * from './script-schema';
 export * from './voices';
+export * from './emotion-instructions';
 export * from './wav';
 export * from './png';
 export * from './types';

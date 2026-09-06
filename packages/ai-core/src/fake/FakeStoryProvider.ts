@@ -68,7 +68,7 @@ function sfxForPage(emotion: Emotion, index: number, isMoral: boolean): SfxCue[]
   if (isMoral) return [];
   const cues: SfxCue[] = [];
   if (emotion === 'joyful') cues.push({ type: 'laugh', at: 0.5 });
-  if ((index + 1) % 3 === 0) cues.push({ type: 'footsteps', at: 0.25 });
+  if ((index + 1) % 3 === 0) cues.push({ type: 'tiptoe', at: 0.25 });
   return cues;
 }
 

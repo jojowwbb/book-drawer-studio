@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ApiError, createBook } from '../api/client';
-import type { BookFormat, BookLang, BookStyle } from '../api/types';
+import type { BookFormat, BookLang, BookStyle, BookTransition } from '../api/types';
 import { Topbar } from '../components/Steps';
 import { listRecentBooks, rememberBook, type RecentBook } from '../lib/storage';
 import { stylePreviewUrl } from '../lib/style-previews';
@@ -14,6 +14,13 @@ const LANG_OPTIONS: { id: BookLang; label: string }[] = [
 const FORMAT_OPTIONS: { id: BookFormat; label: string }[] = [
   { id: 'landscape', label: '横版 16:9' },
   { id: 'portrait', label: '竖版 9:16' },
+];
+
+const TRANSITION_OPTIONS: { id: BookTransition; label: string }[] = [
+  { id: 'slideleft', label: '翻页' },
+  { id: 'coverleft', label: '覆页' },
+  { id: 'wipeleft', label: '擦除' },
+  { id: 'fade', label: '渐隐' },
 ];
 
 const STYLE_OPTIONS: { id: BookStyle; label: string }[] = [
@@ -38,6 +45,7 @@ export function CreatePage(): JSX.Element {
   const [format, setFormat] = useState<BookFormat>('landscape');
   const [enhance, setEnhance] = useState(false);
   const [bgm, setBgm] = useState(true);
+  const [transition, setTransition] = useState<BookTransition>('slideleft');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [recent] = useState<RecentBook[]>(() => listRecentBooks());
@@ -61,6 +69,7 @@ export function CreatePage(): JSX.Element {
         format,
         enhance,
         bgm,
+        transition,
       });
       rememberBook({ id: book_id, theme: trimmed, created_at: Date.now() });
       navigate(`/book/${book_id}`);
@@ -174,6 +183,23 @@ export function CreatePage(): JSX.Element {
                 ))}
               </div>
               <span className="char-count">竖版适配抖音/视频号，插画按竖向构图生成</span>
+            </div>
+            <div className="field">
+              <span className="field-label">翻页效果</span>
+              <div className="seg" role="radiogroup" aria-label="转场效果选择">
+                {TRANSITION_OPTIONS.map((o) => (
+                  <button
+                    key={o.id}
+                    type="button"
+                    className={transition === o.id ? 'seg-item active' : 'seg-item'}
+                    aria-pressed={transition === o.id}
+                    onClick={() => setTransition(o.id)}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+              <span className="char-count">幕与幕之间的过渡动画：翻页最像翻绘本，渐隐最柔和</span>
             </div>
             <label className="switch-row">
               <input

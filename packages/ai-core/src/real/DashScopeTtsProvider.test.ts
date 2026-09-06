@@ -96,4 +96,28 @@ describe('DashScopeTtsProvider', () => {
     expect(input2.instructions).toBeUndefined();
     expect(input2.optimize_instructions).toBeUndefined();
   });
+
+  it('merges per-request tone instructions after the global base', async () => {
+    let sent: { input: Record<string, unknown> } | undefined;
+    const fetchMock = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      if (String(url).endsWith('/generation')) {
+        sent = JSON.parse(String(init?.body)) as never;
+        return jsonResponse({ output: { audio: { url: 'https://cdn/a.wav' } } });
+      }
+      return new Response(wav, { status: 200 });
+    });
+    const provider = new DashScopeTtsProvider(
+      { ...cfg, model: 'qwen3-tts-instruct-flash', instructions: '语速缓慢柔和。' },
+      { fetchImpl: fetchMock as unknown as typeof fetch },
+    );
+    await provider.synthesize({ text: '雪停了。', lang: 'zh', instructions: '语气好奇惊喜。' });
+    expect(sent!.input.instructions).toBe('语速缓慢柔和。语气好奇惊喜。');
+    // 无全局基调时单独下发请求级指令
+    const bare = new DashScopeTtsProvider(
+      { ...cfg, model: 'qwen3-tts-instruct-flash' },
+      { fetchImpl: fetchMock as unknown as typeof fetch },
+    );
+    await bare.synthesize({ text: 'x', lang: 'zh', instructions: '声音压低。' });
+    expect(sent!.input.instructions).toBeTruthy();
+  });
 });

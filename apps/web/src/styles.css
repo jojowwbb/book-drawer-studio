@@ -595,6 +595,44 @@ h2 { font-size: 17px; margin: 0 0 12px; font-weight: 700; }
   background: #fff;
 }
 
+/* 音色确认页的剧本对照 */
+.script-review { margin: 16px 0; }
+.script-review h3 { margin: 0 0 6px; font-size: 15px; }
+.script-list { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.script-page {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--panel-bg, #fff);
+}
+.script-page-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+.script-page-head strong { font-size: 14px; white-space: nowrap; }
+.script-page-head .hint { flex: 1; }
+.script-lines { margin-bottom: 8px; display: flex; flex-direction: column; gap: 4px; }
+.script-line { margin: 0; font-size: 14px; line-height: 1.7; }
+.script-speaker {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: rgba(91, 157, 255, 0.12);
+  color: #3a72c9;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.script-speaker.is-narrator { background: rgba(140, 140, 150, 0.15); color: #777; }
+.script-edit textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.7;
+  resize: vertical;
+}
+.script-edit-ctrl { display: flex; gap: 8px; margin-top: 8px; }
+
 /* ---------- 故事视频产线：分镜卡片墙 ---------- */
 .scene-grid {
   display: grid;

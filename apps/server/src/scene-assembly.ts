@@ -177,6 +177,8 @@ export function buildSceneSpec(args: BuildSceneSpecArgs): SceneSpec {
     sfx: (page.sfx ?? []).map((c) => ({ type: c.type, at: c.at ?? 0.5 })),
     // 字幕与旁白 TTS 同源（合成语音用的就是 narration），画面文字与语音内容保持一致
     subtitle: { text: page.narration || page.page_text },
+    // 分角色段透传：编辑旁白时回填成【旁白】/【角色】标记，供用户手动修复说话人
+    segments: page.segments?.length ? page.segments.map((s) => ({ speaker: s.speaker, text: s.text })) : undefined,
   };
   if (assets.foreground_url) spec.foreground = { src: assets.foreground_url };
   return spec;

@@ -1,5 +1,46 @@
 import { describe, expect, it } from 'vitest';
-import { NARRATOR, repairSegments, stripNarrationQuotes } from './voices';
+import { NARRATOR, parseSpeakerMarkup, repairSegments, segmentsToNarration, stripNarrationQuotes } from './voices';
+
+describe('parseSpeakerMarkup', () => {
+  it('parses 【旁白】/【角色】 markers into segments in order', () => {
+    const out = parseSpeakerMarkup('【旁白】天黑了。【小兔】妈妈，我害怕……【旁白】兔妈妈把小兔搂进怀里。');
+    expect(out).toEqual([
+      { speaker: NARRATOR, text: '天黑了。' },
+      { speaker: '小兔', text: '妈妈，我害怕……' },
+      { speaker: NARRATOR, text: '兔妈妈把小兔搂进怀里。' },
+    ]);
+  });
+
+  it('treats text before the first marker as narrator', () => {
+    const out = parseSpeakerMarkup('小星星眨眼睛。【小熊】我好困呀……');
+    expect(out).toEqual([
+      { speaker: NARRATOR, text: '小星星眨眼睛。' },
+      { speaker: '小熊', text: '我好困呀……' },
+    ]);
+  });
+
+  it('falls back to a single narrator segment when there are no markers', () => {
+    expect(parseSpeakerMarkup('从前有座山。')).toEqual([{ speaker: NARRATOR, text: '从前有座山。' }]);
+  });
+
+  it('drops empty segments and accepts half-width brackets', () => {
+    const out = parseSpeakerMarkup('[旁白]a[小兔][小熊]b');
+    expect(out).toEqual([
+      { speaker: NARRATOR, text: 'a' },
+      { speaker: '小熊', text: 'b' },
+    ]);
+  });
+
+  it('segments round-trip to narration text aligned for repairSegments', () => {
+    const markup = '【旁白】天黑了。【小兔】我怕。';
+    const segs = parseSpeakerMarkup(markup);
+    const narration = segmentsToNarration(segs);
+    expect(narration).toBe('天黑了。我怕。');
+    // repairSegments 能在去引号 narration 中按序定位每段
+    const repaired = repairSegments(narration, segs);
+    expect(repaired).toEqual(segs);
+  });
+});
 
 describe('stripNarrationQuotes', () => {
   it('removes Chinese and ASCII quotes', () => {

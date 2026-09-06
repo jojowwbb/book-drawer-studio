@@ -132,8 +132,10 @@ function BookLifecycle({ initial }: { initial: BookStatus }): JSX.Element {
           {status.voice_review ? (
             <CharacterReview
               bookId={status.book_id}
+              title={status.voice_review.title}
               characters={status.voice_review.characters}
               narratorVoice={status.voice_review.narrator_voice}
+              pages={status.voice_review.pages}
             />
           ) : (
             <div className="page-card progress-stage">

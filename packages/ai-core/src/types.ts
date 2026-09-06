@@ -119,6 +119,11 @@ export interface TtsRequest {
   lang: Lang;
   /** 音色（供应商自定义标识） */
   voice?: string;
+  /**
+   * 本条语音的自然语言语气指令（如该页情绪的朗读语气），与供应商全局
+   * 基调指令叠加下发；仅 instruct 系模型生效。
+   */
+  instructions?: string;
 }
 
 export interface TtsResult {

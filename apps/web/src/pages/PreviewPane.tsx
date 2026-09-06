@@ -1,7 +1,7 @@
 import type { BookSpec } from '@pb/renderer';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { editPageText, exportBook, pollUntilState, redubBook, regeneratePage } from '../api/client';
+import { ApiError, editPageText, exportBook, pollUntilState, redubBook, regeneratePage } from '../api/client';
 import type { BookLang, BookStatus, PageClipInfo } from '../api/types';
 import { BookPlayerCanvas, type BookPlayerHandle } from '../components/BookPlayerCanvas';
 import { loadBookSpec } from '../lib/spec';
@@ -52,8 +52,10 @@ export function PreviewPane({
   const [draftTags, setDraftTags] = useState('');
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
-  /** 保存时刻的 clipVersions 基线：版本增加即代表该页片段重渲染完成 */
+  /** 保存时刻的 clipVersions 基线：版本增加即代表该页片段重做完成 */
   const [saveBaseVersion, setSaveBaseVersion] = useState<Record<string, number>>({});
+  /** 编辑锁定的页：播放器持续播放会让 activePage 漂移，编辑/保存必须以锁定页为准 */
+  const [editPageId, setEditPageId] = useState<string | null>(null);
   const playerRef = useRef<BookPlayerHandle>(null);
 
   const specUrl = specUrls[lang];
@@ -86,45 +88,61 @@ export function PreviewPane({
   const isTitlePage = activePageId === TITLE_PAGE_ID;
   const activeScene = spec?.pages[activePage];
 
-  // 文案编辑保存后：等该页片段重渲染完成（page_clip ready → clipVersions +1）再重载 spec 并退出编辑
+  // 文案编辑保存后：等锁定页的片段重渲染完成（page_clip ready → clipVersions +1）再重载 spec 并退出编辑
   useEffect(() => {
-    if (!saving || !activePageId) return;
-    if ((clipVersions[activePageId] ?? 0) > (saveBaseVersion[activePageId] ?? 0)) {
+    if (!saving || !editPageId) return;
+    if ((clipVersions[editPageId] ?? 0) > (saveBaseVersion[editPageId] ?? 0)) {
       setSaving(false);
-      setEditing(false);
+      closeEdit();
       if (specUrl) void reload(specUrl);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clipVersions, saving, activePageId]);
+  }, [clipVersions, saving, editPageId]);
 
   // 旁白失败也要退出等待（narration failed 不会再有 clip ready）
   useEffect(() => {
-    if (!saving || !activePageId) return;
-    if (narrationStates[activePageId]?.phase === 'failed') {
+    if (!saving || !editPageId) return;
+    if (narrationStates[editPageId]?.phase === 'failed') {
       setSaving(false);
-      setEditError(narrationStates[activePageId]?.error ?? '旁白合成失败');
+      setEditError(narrationStates[editPageId]?.error ?? '旁白合成失败');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [narrationStates, saving, activePageId]);
+  }, [narrationStates, saving, editPageId]);
 
   const startEdit = useCallback(() => {
-    if (!activeScene) return;
+    if (!activeScene || !activePageId) return;
+    // 锁定当前页并暂停播放：否则播放器继续推进 activePage，保存时会写到别的页
+    playerRef.current?.pause();
     setEditError(null);
+    setEditPageId(activePageId);
     if (activeScene.title_overlay) {
       setDraftTitle(activeScene.title_overlay.title);
       setDraftSubtitle(activeScene.title_overlay.subtitle ?? '');
       setDraftTags(activeScene.title_overlay.tags.join('、'));
     } else {
-      setDraftNarration(activeScene.subtitle?.text ?? '');
+      // 有分角色段时回填成【旁白】/【角色】标记文本，用户可据此手动修复说话人；无段则纯文本
+      const segs = activeScene.segments;
+      setDraftNarration(
+        segs && segs.length > 0
+          ? segs.map((s) => `【${s.speaker}】${s.text}`).join('')
+          : activeScene.subtitle?.text ?? '',
+      );
     }
     setEditing(true);
-  }, [activeScene]);
+  }, [activeScene, activePageId]);
+
+  const closeEdit = useCallback(() => {
+    setEditing(false);
+    setEditPageId(null);
+    setEditError(null);
+  }, []);
 
   const onSaveText = useCallback(async () => {
-    if (!status.book_id || !activePageId) return;
+    if (!status.book_id || !editPageId) return;
     setEditError(null);
+    const isTitle = editPageId === TITLE_PAGE_ID;
     const patch: { narration?: string; cover?: { title?: string; subtitle?: string; tags?: string[] } } = {};
-    if (isTitlePage) {
+    if (isTitle) {
       const title = draftTitle.trim();
       if (!title) {
         setEditError('大标题不能为空');
@@ -147,19 +165,27 @@ export function PreviewPane({
       patch.narration = narration;
     }
     setSaving(true);
-    setSaveBaseVersion((m) => ({ ...m, [activePageId]: clipVersions[activePageId] ?? 0 }));
+    setSaveBaseVersion((m) => ({ ...m, [editPageId]: clipVersions[editPageId] ?? 0 }));
     try {
-      await editPageText(status.book_id, activePageId, patch);
+      await editPageText(status.book_id, editPageId, patch);
     } catch (e) {
       setSaving(false);
-      setEditError(e instanceof Error ? e.message : String(e));
+      // 未知说话人：把角色名列表提示给用户，让其改正标记后重试
+      const payload = e instanceof ApiError ? (e.payload as { error?: string; speakers?: string[] }) : null;
+      if (payload?.error === 'unknown_speakers') {
+        setEditError(`找不到这些角色：${(payload.speakers ?? []).join('、')}，请检查【】里的名字（旁白请用【旁白】）`);
+      } else {
+        setEditError(e instanceof Error ? e.message : String(e));
+      }
     }
-  }, [status.book_id, activePageId, isTitlePage, draftTitle, draftSubtitle, draftTags, draftNarration, clipVersions]);
+  }, [status.book_id, editPageId, draftTitle, draftSubtitle, draftTags, draftNarration, clipVersions]);
 
   const goToPage = useCallback(
     (index: number) => {
       const clamped = Math.min(Math.max(0, index), Math.max(0, totalPages - 1));
       setActivePage(clamped);
+      // 手动选页时暂停：否则播放器继续推进，选中的页与旁白回放条会错位到别的页
+      playerRef.current?.pause();
       playerRef.current?.seekPage(clamped);
     },
     [totalPages],
@@ -195,11 +221,11 @@ export function PreviewPane({
   // 片头幕不在 clips 清单里：旁白回放地址从 status 轮询后由 page_narration 事件补进 narrationUrl
   const narrationState = activePageId ? narrationStates[activePageId] : undefined;
 
-  // 切页时清掉上一页的片段错误提示与编辑态
+  // 切页时清掉上一页的片段错误提示与编辑态（播放器已暂停时只有手动切页会触发）
   useEffect(() => {
     setClipError(null);
-    setEditing(false);
-    setEditError(null);
+    closeEdit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePageId]);
 
   const onRedub = useCallback(async () => {
@@ -315,7 +341,7 @@ export function PreviewPane({
           )}
           {editing && (
             <div className="text-edit-form">
-              {isTitlePage ? (
+              {editPageId === TITLE_PAGE_ID ? (
                 <>
                   <label className="field">
                     <span>大标题</span>
@@ -353,6 +379,10 @@ export function PreviewPane({
                     maxLength={200}
                     onChange={(e) => setDraftNarration(e.target.value)}
                   />
+                  <span className="char-count">
+                    分角色配音：用【旁白】【角色名】标记每句话由谁念，例如
+                    【旁白】天黑了。【小兔】妈妈，我害怕……角色名须与故事角色一致
+                  </span>
                 </label>
               )}
               <div className="text-edit-actions">
@@ -370,10 +400,7 @@ export function PreviewPane({
                   type="button"
                   className="btn-secondary btn-small"
                   disabled={saving}
-                  onClick={() => {
-                    setEditing(false);
-                    setEditError(null);
-                  }}
+                  onClick={closeEdit}
                 >
                   取消
                 </button>

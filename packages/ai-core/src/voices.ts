@@ -107,3 +107,56 @@ export function repairSegments(narration: string, segments: RawSegment[] | undef
   if (cursor < flat.length) repaired.push({ speaker: NARRATOR, text: flat.slice(cursor) });
   return repaired;
 }
+
+/**
+ * 用户手写的分角色台词标记 → segments。
+ *
+ * 背景：AI 归一化无法识别的 speaker 会被并入旁白（宁可旁白也不错配），
+ * 用户可在「编辑旁白」里用标记手动指定说话人修复后重新生成配音：
+ *   【旁白】天黑了。【小兔】妈妈，我害怕……【旁白】兔妈妈把小兔搂进怀里。
+ *
+ * 规则：标记必须是【名字】格式；名字等于「旁白」（或 NARRATOR 常量）→ 旁白段，
+ * 否则原样保留为角色名（由调用方校验是否在角色表内）；第一个标记之前的文本
+ * 视为旁白（兼容用户只在角色台词前加标记的写法）；无标记时整段回退为旁白，
+ * 行为与 repairSegments(…, undefined) 一致。
+ */
+export function parseSpeakerMarkup(text: string): RawSegment[] {
+  const MARK = /[【\[]([^\]】]+)[】\]]/g;
+  const segments: RawSegment[] = [];
+  let cursor = 0;
+  let current: { speaker: string; text: string } | null = null;
+  const pushCurrent = () => {
+    if (!current) return;
+    const body = current.text.trim();
+    if (body) segments.push({ speaker: current.speaker, text: body });
+    current = null;
+  };
+  for (const m of text.matchAll(MARK)) {
+    const idx = m.index ?? 0;
+    if (current) {
+      current.text += text.slice(cursor, idx);
+      pushCurrent();
+    } else {
+      // 第一个标记之前的文本：旁白
+      const lead = text.slice(cursor, idx).trim();
+      if (lead) segments.push({ speaker: NARRATOR, text: lead });
+    }
+    const name = m[1]!.trim();
+    current = { speaker: !name || name === NARRATOR ? NARRATOR : name, text: '' };
+    cursor = idx + m[0].length;
+  }
+  if (current) {
+    current.text += text.slice(cursor);
+    pushCurrent();
+  } else if (segments.length === 0 && text.trim()) {
+    // 没有任何标记：整段旁白（普通文本编辑路径，行为不变）
+    return [{ speaker: NARRATOR, text: text.trim() }];
+  }
+  return segments;
+}
+
+/** segments → 纯文本旁白（字幕/TTS 兜底用）：直接拼接各段文本，与逐段朗读内容一致，
+ * 保证 repairSegments 能在 narration 中按序定位每个分段（引导语由旁白段自带） */
+export function segmentsToNarration(segments: RawSegment[]): string {
+  return segments.map((s) => s.text).join('');
+}

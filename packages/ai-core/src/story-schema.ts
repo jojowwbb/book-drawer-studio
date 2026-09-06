@@ -21,46 +21,55 @@ export const FxHintsSchema = z.object({
   ambient: z.string().optional(),
 });
 
-/** 可拟音的音效类型（雨/风等环境声由 fx_hints.ambient 派生，这里是有情节/情绪指向的动作声） */
+/**
+ * 可拟音的音效类型（绘本专注儿童故事：全部素材走「软、萌、童趣」方向，
+ * 避免真实哭声/爆裂声等易惊吓孩子的音色）。
+ * 风声等纯氛围铺底由 fx_hints.ambient 派生，这里是带情节/情绪指向的动作声。
+ */
 export const SFX_TYPES = [
-  // 动作/环境类
-  'laugh',
-  'cry',
-  'footsteps',
-  'door',
-  'knock',
-  'bell',
-  'thunder',
-  'birds',
-  'water',
-  // 情绪类
+  // 情绪人声
   'giggle', // 咯咯偷笑
-  'applause', // 鼓掌
-  'cheer', // 欢呼
-  'gasp', // 惊讶倒吸气
-  'sigh', // 叹气
-  'magic', // 魔法闪光
-  'whoosh', // 呼啸转场
-  'heartbeat', // 心跳（紧张）
-  'yawn', // 打哈欠（困倦）
-  'snore', // 呼噜（安睡）
-  // 动物叫（绘本主角多为小动物）
-  'cat', // 猫叫
-  'dog', // 狗汪汪
-  'rooster', // 公鸡打鸣
-  'duck', // 鸭子嘎嘎
-  'frog', // 青蛙呱呱
-  'cow', // 奶牛哞哞
-  // 自然与物件
+  'laugh', // 童声大笑
+  'sniffle', // 轻轻抽泣（比真实哭声柔和）
+  'gasp', // 惊喜「哇」
+  'cheer', // 齐声欢呼「耶」
+  'yawn', // 软绵哈欠（困倦）
+  'snore', // 轻柔呼噜（安睡）
+  // 可爱动作
+  'tiptoe', // 踮脚轻步
+  'scamper', // 小碎步哒哒跑
+  'hop', // 弹跳 boing
+  'splash', // 戏水啪嗒
+  'whoosh', // 轻柔掠过/转场
+  // 魔法幻想
+  'sparkle', // 魔法星光
+  'poof', // 噗——变身/突然出现
+  'twinkle', // 星星风铃闪烁
+  'music_box', // 八音盒旋律
+  // 小动物（绘本主角多为幼崽，音色更奶更软）
+  'kitten', // 奶猫软喵
+  'puppy', // 小奶狗汪汪
+  'duckling', // 小鸭嘎嘎
+  'frog', // 小青蛙咕呱
+  'owl', // 猫头鹰呜呜
+  'birds', // 清晨鸟鸣
+  'bee', // 小蜜蜂嗡嗡
+  // 自然
+  'rain', // 温柔雨滴
+  'stream', // 林间溪流
   'waves', // 海浪
-  'fire', // 篝火噼啪
+  'thunder', // 远处闷雷（弱化不吓人）
+  // 物件
+  'bell', // 小铃铛
+  'knock', // 软软敲门
+  'door', // 木门吱呀
   'clock', // 时钟滴答
-  'phone', // 电话铃
-  'balloon', // 气球爆
   'page_turn', // 翻书页
+  'balloon', // 气球放气（可爱，非爆裂）
+  'fire', // 篝火噼啪
   // 情节渲染
-  'drum_roll', // 鼓点悬念
-  'fanfare', // 胜利号角
+  'drum_roll', // 玩具鼓点悬念
+  'fanfare', // 俏皮胜利号角
 ] as const;
 export type SfxType = (typeof SFX_TYPES)[number];
 

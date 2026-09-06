@@ -6,7 +6,7 @@ import type { ExportArtifact } from '../book-repo';
 import { ensureCanonPianoWav } from './bgm';
 import { probeHasAudio } from './ffmpeg';
 import { DEFAULT_TRANSITION_MS, NARRATION_LEAD_MS, NARRATION_TAIL_MS, joinClips } from './clip-join';
-import type { JoinDeps, JoinPart } from './clip-join';
+import type { JoinDeps, JoinPart, TransitionType } from './clip-join';
 
 export interface ConcatExporterDeps {
   assets: AssetStore;
@@ -15,8 +15,10 @@ export interface ConcatExporterDeps {
   probeHasAudio?: (path: string) => Promise<boolean>;
   /** 重编码拼接时的目标帧率 */
   fps?: number;
-  /** 幕间交叉溶解时长（ms）；0 关闭转场回到硬切拼接 */
+  /** 幕间转场时长（ms）；0 关闭转场回到硬切拼接 */
   transitionMs?: number;
+  /** 转场类型（翻页感 slideleft / 交叉溶解 fade 等）；缺省见 DEFAULT_TRANSITION_TYPE */
+  transition?: TransitionType;
   /** 背景音乐文件路径；undefined 用内置卡农钢琴版，null 关闭 BGM */
   bgmPath?: string | null;
   /** BGM 相对音量（旁白保持原音量），默认 0.12 */
@@ -71,16 +73,19 @@ export class ConcatExporter {
       });
     }
 
+    const record = assets.tryReadBookRecord(bookId);
     const joinDeps: JoinDeps = {
       ffmpegBin: this.deps.ffmpegBin,
       fps: this.deps.fps,
       transitionMs: this.deps.transitionMs ?? DEFAULT_TRANSITION_MS,
+      // 首页可为每本书选转场；缺省走全局配置（默认 slideleft 翻页感）
+      transition: record?.transition ?? this.deps.transition,
       bgmVolume: this.deps.bgmVolume,
       sfx: this.deps.sfx,
     };
     const outPath = assets.rootPath('books', bookId, `exports/${lang}.mp4`);
     // 每本书可关闭 BGM（创建页开关）：bgm=false 时成片不混背景音乐
-    const bgmOff = assets.tryReadBookRecord(bookId)?.bgm === false;
+    const bgmOff = record?.bgm === false;
     const { totalMs, sizeBytes } = await joinClips(joinDeps, parts, spec.pages[0]!, outPath, {
       tag: lang,
       bgmPath: this.bgmFile(bgmOff),

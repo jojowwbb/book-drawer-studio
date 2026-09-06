@@ -49,9 +49,12 @@ export class DashScopeTtsProvider implements TtsProvider {
       voice: req.voice ?? this.cfg.voice,
       language_type: LANGUAGE_TYPE[req.lang] ?? 'Auto',
     };
-    // 指令控制仅 instruct 系模型支持：慢速/情感等表现力通过自然语言指令下发
-    if (this.cfg.instructions && this.cfg.model.includes('instruct')) {
-      input.instructions = this.cfg.instructions;
+    // 指令控制仅 instruct 系模型支持：慢速/情感等表现力通过自然语言指令下发。
+    // 全局基调（cfg.instructions，如慢速治愈）与请求级语气（req.instructions，
+    // 如该页情绪的朗读语气）叠加合并为一条。
+    const instructions = [this.cfg.instructions, req.instructions].filter(Boolean).join('');
+    if (instructions && this.cfg.model.includes('instruct')) {
+      input.instructions = instructions;
       input.optimize_instructions = true;
     }
     const res = await fetchJson<TtsResponse>(

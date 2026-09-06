@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeScriptLocations, ScriptAnalysisSchema } from './script-schema';
+import { normalizeScriptLocations, normalizeScriptSpeakers, ScriptAnalysisSchema } from './script-schema';
 
 function fixture(overrides: Record<string, unknown> = {}) {
   return {
@@ -147,5 +147,78 @@ describe('normalizeScriptLocations', () => {
     );
     const normDup = normalizeScriptLocations(dup);
     expect(normDup.locations).toEqual([{ id: 'l1', name: '港口', description: 'A' }]);
+  });
+});
+
+describe('normalizeScriptSpeakers', () => {
+  // 构造一场含多条 speaker 写法各异的对白
+  function withDialogues(lines: { speaker: string; line: string }[]) {
+    return ScriptAnalysisSchema.parse(
+      fixture({
+        episodes: [
+          {
+            id: 'e1',
+            title: '第一集',
+            scenes: [
+              { id: 's1', synopsis: 'a', scene_prompt: 'b', dialogues: lines },
+              { id: 's2', synopsis: 'a', scene_prompt: 'b' },
+              { id: 's3', synopsis: 'a', scene_prompt: 'b' },
+            ],
+          },
+        ],
+      }),
+    );
+  }
+
+  it('keeps exact character names untouched', () => {
+    const norm = normalizeScriptSpeakers(withDialogues([{ speaker: '老周', line: '拿着。' }]));
+    expect(norm.episodes[0]!.scenes[0]!.dialogues).toEqual([{ speaker: '老周', line: '拿着。' }]);
+  });
+
+  it('resolves id, whitespace and unique-substring speakers back to the character name', () => {
+    const norm = normalizeScriptSpeakers(
+      withDialogues([
+        { speaker: 'c1', line: '一' }, // 角色 id
+        { speaker: ' 老周 ', line: '二' }, // 多余空格
+        { speaker: '小满', line: '三' }, // 简称（唯一子串 → 林小满）
+      ]),
+    );
+    expect(norm.episodes[0]!.scenes[0]!.dialogues).toEqual([
+      { speaker: '林小满', line: '一' },
+      { speaker: '老周', line: '二' },
+      { speaker: '林小满', line: '三' },
+    ]);
+  });
+
+  it('merges narrator and unresolvable speakers into narration instead of misassigning', () => {
+    const norm = normalizeScriptSpeakers(
+      withDialogues([
+        { speaker: '旁白', line: '天黑了。' }, // 幻觉旁白条目
+        { speaker: '神秘人', line: '你是谁？' }, // 角色表里没有的名字
+      ]),
+    );
+    const scene = norm.episodes[0]!.scenes[0]!;
+    expect(scene.dialogues).toEqual([]); // 全部移出对白
+    expect(scene.narration).toBe('天黑了。 你是谁？'); // 并入旁白，不错配给任何角色
+  });
+
+  it('appends orphan lines to an existing narration', () => {
+    const base = ScriptAnalysisSchema.parse(
+      fixture({
+        episodes: [
+          {
+            id: 'e1',
+            title: '第一集',
+            scenes: [
+              { id: 's1', synopsis: 'a', scene_prompt: 'b', narration: '夜里。', dialogues: [{ speaker: '旁白', line: '风起了。' }] },
+              { id: 's2', synopsis: 'a', scene_prompt: 'b' },
+              { id: 's3', synopsis: 'a', scene_prompt: 'b' },
+            ],
+          },
+        ],
+      }),
+    );
+    const norm = normalizeScriptSpeakers(base);
+    expect(norm.episodes[0]!.scenes[0]!.narration).toBe('夜里。 风起了。');
   });
 });

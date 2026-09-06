@@ -1,9 +1,18 @@
 import { resolve } from 'node:path';
 import { createFakeProviders, loadRepoEnvFile, type ProviderBundle } from '@pb/ai-core';
 import { buildApp } from './api';
+import { TRANSITION_TYPES, type TransitionType } from './export/clip-join';
 
 // 优先读取仓库根 .env（已存在的 shell 环境变量仍然优先）
 loadRepoEnvFile(import.meta.url);
+
+function parseTransition(raw: string | undefined): TransitionType | undefined {
+  if (!raw) return undefined;
+  if (!(TRANSITION_TYPES as readonly string[]).includes(raw)) {
+    throw new Error(`invalid PB_EXPORT_TRANSITION: ${raw} (取 ${TRANSITION_TYPES.join('/')})`);
+  }
+  return raw as TransitionType;
+}
 
 const port = Number(process.env.PORT ?? 8787);
 const dataDir = resolve(process.env.DATA_DIR ?? resolve(process.cwd(), 'data'));
@@ -30,6 +39,8 @@ const app = await buildApp({
   exportTransitionMs: process.env.PB_EXPORT_TRANSITION_MS
     ? Number(process.env.PB_EXPORT_TRANSITION_MS)
     : undefined,
+  // PB_EXPORT_TRANSITION=fade|slideleft|coverleft|wipeleft（缺省 slideleft 翻页感）
+  exportTransition: parseTransition(process.env.PB_EXPORT_TRANSITION),
   bgm: process.env.PB_BGM,
   sfx: process.env.PB_SFX,
   defaultPageCount: process.env.PB_DEFAULT_PAGE_COUNT

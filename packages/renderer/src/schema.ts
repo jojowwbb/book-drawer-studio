@@ -40,37 +40,47 @@ export const AmbientSpecSchema = z.object({
 
 /** 情节音效（由文案生成阶段分析旁白得出）：type=音效种类，at=对应词语在旁白文稿中的位置比例（0-1）。渲染层忽略，导出混音使用 */
 export const SFX_CUE_TYPES = [
-  'laugh',
-  'cry',
-  'footsteps',
-  'door',
-  'knock',
-  'bell',
-  'thunder',
-  'birds',
-  'water',
+  // 情绪人声
   'giggle',
-  'applause',
-  'cheer',
+  'laugh',
+  'sniffle',
   'gasp',
-  'sigh',
-  'magic',
-  'whoosh',
-  'heartbeat',
+  'cheer',
   'yawn',
   'snore',
-  'cat',
-  'dog',
-  'rooster',
-  'duck',
+  // 可爱动作
+  'tiptoe',
+  'scamper',
+  'hop',
+  'splash',
+  'whoosh',
+  // 魔法幻想
+  'sparkle',
+  'poof',
+  'twinkle',
+  'music_box',
+  // 小动物
+  'kitten',
+  'puppy',
+  'duckling',
   'frog',
-  'cow',
+  'owl',
+  'birds',
+  'bee',
+  // 自然
+  'rain',
+  'stream',
   'waves',
-  'fire',
+  'thunder',
+  // 物件
+  'bell',
+  'knock',
+  'door',
   'clock',
-  'phone',
-  'balloon',
   'page_turn',
+  'balloon',
+  'fire',
+  // 情节渲染
   'drum_roll',
   'fanfare',
 ] as const;
@@ -106,6 +116,8 @@ export const SceneSpecSchema = z.object({
   sfx: z.array(SfxCueSpecSchema).default([]),
   video_ref: z.string().optional(),
   subtitle: z.object({ text: z.string() }).optional(),
+  /** 分角色配音段（编辑旁白时回填成【旁白】/【角色】标记文本；无则纯旁白） */
+  segments: z.array(z.object({ speaker: z.string().min(1), text: z.string().min(1) })).optional(),
   /** 片头幕叠加层（有值时该幕渲染为大标题 + 标签胶囊，不渲染普通字幕） */
   title_overlay: TitleOverlaySchema.optional(),
   audio_refs: z

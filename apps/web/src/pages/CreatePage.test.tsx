@@ -55,6 +55,7 @@ describe('CreatePage', () => {
       format: 'landscape',
       enhance: false,
       bgm: true,
+      transition: 'slideleft',
     });
     const recent = JSON.parse(localStorage.getItem('pb_recent_books') ?? '[]') as {
       id: string;
@@ -81,6 +82,7 @@ describe('CreatePage', () => {
       format: 'landscape',
       enhance: false,
       bgm: true,
+      transition: 'slideleft',
     });
   });
 
@@ -108,6 +110,18 @@ describe('CreatePage', () => {
     fireEvent.click(screen.getByRole('button', { name: '开始创作' }));
     await waitFor(() => expect(screen.getByText('BOOK_PAGE_PROBE')).toBeTruthy());
     expect(vi.mocked(createBook)).toHaveBeenCalledWith(expect.objectContaining({ bgm: false }));
+  });
+
+  it('submits the selected transition type', async () => {
+    vi.mocked(createBook).mockResolvedValue({ book_id: 'b46' });
+    renderPage();
+    fireEvent.change(screen.getByLabelText('故事主题或整篇文章'), {
+      target: { value: '小恐龙学飞' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '渐隐' }));
+    fireEvent.click(screen.getByRole('button', { name: '开始创作' }));
+    await waitFor(() => expect(screen.getByText('BOOK_PAGE_PROBE')).toBeTruthy());
+    expect(vi.mocked(createBook)).toHaveBeenCalledWith(expect.objectContaining({ transition: 'fade' }));
   });
 
   it('shows a validation error for an empty theme', async () => {
